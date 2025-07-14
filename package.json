@@ -54,7 +54,7 @@
     "rollup",
     "webpack"
   ],
-  "author": "",
+  "author": "Bridger Tower",
   "license": "MIT",
   "packageManager": "pnpm@10.12.4",
   "devDependencies": {
