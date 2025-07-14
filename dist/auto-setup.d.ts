@@ -1,5 +1,5 @@
 interface ProjectInfo {
-    bundler: "vite" | "next" | "webpack" | "rollup" | "none";
+    bundler: "vite" | "next" | "webpack" | "rollup" | "astro" | "sveltekit" | "none";
     hasTypeScript: boolean;
     projectRoot: string;
 }

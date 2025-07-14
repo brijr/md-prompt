@@ -15,6 +15,36 @@ program
   .description("Markdown-to-prompt toolkit with typed placeholders")
   .version("0.1.0");
 
+// Simplified alias commands
+program
+  .command("setup")
+  .description("Quick setup - same as 'init'")
+  .option("--dry-run", "Show what would be configured without making changes")
+  .option("--template <framework>", "Scaffold starter files for a specific framework")
+  .action(() => {
+    // Delegate to init command
+    program.commands.find(cmd => cmd.name() === 'init')?.parseAsync(['', '', ...process.argv.slice(3)]);
+  });
+
+program
+  .command("watch")
+  .description("Watch and build markdown files (defaults to **/*.md)")
+  .argument("[pattern]", "Glob pattern for markdown files", "**/*.md")
+  .option("-o, --outdir <dir>", "Output directory", "./generated")
+  .action((pattern, options) => {
+    // Delegate to build command with watch flag
+    program.commands.find(cmd => cmd.name() === 'build')?.parseAsync(['', '', pattern, '--watch', '--outdir', options.outdir]);
+  });
+
+program
+  .command("create <framework>")
+  .description("Create template files for a framework")
+  .option("-d, --dir <dir>", "Directory to create files in", ".")
+  .action((framework, options) => {
+    // Delegate to template command
+    program.commands.find(cmd => cmd.name() === 'template')?.parseAsync(['', '', framework, '--dir', options.dir]);
+  });
+
 program
   .command("init")
   .description("Initialize md-prompt in your project with auto-detection")
@@ -100,7 +130,7 @@ program
   .description("Build markdown files to JavaScript modules")
   .argument("[pattern]", "Glob pattern for markdown files", "**/*.md")
   .option("-w, --watch", "Watch for changes and rebuild")
-  .option("-o, --outdir <dir>", "Output directory", "dist")
+  .option("-o, --outdir <dir>", "Output directory", "./generated")
   .action(
     async (pattern: string, options: { watch?: boolean; outdir: string }) => {
       const files = await glob(pattern);

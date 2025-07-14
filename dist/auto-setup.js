@@ -13,6 +13,10 @@ function detectProject(cwd = process.cwd()) {
     };
     if (deps.next || existsSync(join(cwd, "next.config.js")) || existsSync(join(cwd, "next.config.mjs"))) {
       bundler = "next";
+    } else if (deps.astro || existsSync(join(cwd, "astro.config.mjs")) || existsSync(join(cwd, "astro.config.ts"))) {
+      bundler = "astro";
+    } else if (deps["@sveltejs/kit"] || existsSync(join(cwd, "svelte.config.js"))) {
+      bundler = "sveltekit";
     } else if (deps.vite || existsSync(join(cwd, "vite.config.ts")) || existsSync(join(cwd, "vite.config.js"))) {
       bundler = "vite";
     } else if (deps.webpack || existsSync(join(cwd, "webpack.config.js"))) {
@@ -85,14 +89,40 @@ export default {
         );
       }
       break;
+    case "astro":
+      messages.push(
+        "\u26A0\uFE0F  Astro detected. Add to your astro.config.mjs:",
+        "",
+        "import { defineConfig } from 'astro/config';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default defineConfig({",
+        "  vite: {",
+        "    plugins: [mdPrompt()]",
+        "  }",
+        "});"
+      );
+      break;
+    case "sveltekit":
+      messages.push(
+        "\u26A0\uFE0F  SvelteKit detected. Add to your vite.config.js:",
+        "",
+        "import { sveltekit } from '@sveltejs/kit/vite';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default {",
+        "  plugins: [sveltekit(), mdPrompt()]",
+        "};"
+      );
+      break;
     case "none":
       messages.push(
-        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
+        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build"
       );
       break;
     default:
       messages.push(
-        `\u{1F4A1} ${bundler} detected. Please configure manually or use CLI mode.`
+        `\u{1F4A1} ${bundler} detected. Add mdPrompt() to your bundler config.`
       );
   }
   return messages;
@@ -128,6 +158,26 @@ You are a helpful assistant named {name}.
 // 2. Use in your code (with md-prompt/rollup plugin):
 import assistantPrompt from './prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
+    astro: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your .astro component:
+---
+import assistantPrompt from '../prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });
+---
+<p>{prompt}</p>`,
+    sveltekit: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your +page.svelte:
+<script>
+import assistantPrompt from '$lib/prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });
+</script>
+<p>{prompt}</p>`,
     none: `// 1. Create prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.

@@ -6,20 +6,42 @@ export interface PlaceholderInfo {
 }
 
 export function extractPlaceholders(src: string): PlaceholderInfo[] {
-  const re = /\{([a-zA-Z0-9_]+?)(\?)?(?::([a-z]+))?\}/g;
+  // Updated regex to support shorthand syntax:
+  // {name} - string (default)
+  // {name?} - optional string
+  // {name:type} - typed (number, boolean, json)
+  // {name#} - shorthand for number
+  // {name!} - shorthand for boolean
+  // {name@} - shorthand for json
+  const re = /\{([a-zA-Z0-9_]+?)([\?#!@])?(?::([a-z]+))?\}/g;
   const placeholders: PlaceholderInfo[] = [];
   const seen = new Set<string>();
   let match;
   
   while ((match = re.exec(src))) {
-    const [raw, name, optionalMarker, type] = match;
-    const key = `${name}${optionalMarker || ''}${type ? `:${type}` : ''}`;
+    const [raw, name, modifier, explicitType] = match;
+    
+    // Determine type from modifier or explicit type
+    let type = explicitType;
+    let optional = false;
+    
+    if (modifier === '?') {
+      optional = true;
+    } else if (modifier === '#') {
+      type = 'number';
+    } else if (modifier === '!') {
+      type = 'boolean';
+    } else if (modifier === '@') {
+      type = 'json';
+    }
+    
+    const key = `${name}${optional ? '?' : ''}${type ? `:${type}` : ''}`;
     
     if (!seen.has(key) && name) {
       seen.add(key);
       const placeholder: PlaceholderInfo = {
         name,
-        optional: Boolean(optionalMarker),
+        optional,
         raw,
       };
       if (type) {

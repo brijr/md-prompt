@@ -1871,101 +1871,6 @@ var require_lib = __commonJS({
   }
 });
 
-// src/extract.ts
-function extractPlaceholders(src) {
-  const re = /\{([a-zA-Z0-9_]+?)(\?)?(?::([a-z]+))?\}/g;
-  const placeholders = [];
-  const seen = /* @__PURE__ */ new Set();
-  let match;
-  while (match = re.exec(src)) {
-    const [raw, name, optionalMarker, type] = match;
-    const key = `${name}${optionalMarker || ""}${type ? `:${type}` : ""}`;
-    if (!seen.has(key) && name) {
-      seen.add(key);
-      const placeholder = {
-        name,
-        optional: Boolean(optionalMarker),
-        raw
-      };
-      if (type) {
-        placeholder.type = type;
-      }
-      placeholders.push(placeholder);
-    }
-  }
-  return placeholders;
-}
-function generateTypeDefinition(placeholders) {
-  const required = [];
-  const optional = [];
-  for (const placeholder of placeholders) {
-    const tsType = mapPlaceholderType(placeholder.type);
-    const prop = `${placeholder.name}: ${tsType}`;
-    if (placeholder.optional) {
-      optional.push(`${placeholder.name}?: ${tsType}`);
-    } else {
-      required.push(prop);
-    }
-  }
-  const allProps = [...required, ...optional];
-  return allProps.length > 0 ? `{ ${allProps.join("; ")} }` : "{}";
-}
-function mapPlaceholderType(type) {
-  switch (type) {
-    case "number":
-      return "number";
-    case "boolean":
-      return "boolean";
-    case "json":
-      return "Record<string, unknown>";
-    default:
-      return "string";
-  }
-}
-function generateTemplateFunction(content, placeholders) {
-  const typeDefinition = generateTypeDefinition(placeholders);
-  const hasPlaceholders = placeholders.length > 0;
-  if (!hasPlaceholders) {
-    return `export default ${JSON.stringify(content)};`;
-  }
-  let templateBody = content;
-  for (const placeholder of placeholders) {
-    const regex = new RegExp(escapeRegExp(placeholder.raw), "g");
-    templateBody = templateBody.replace(regex, `\${vars.${placeholder.name}}`);
-  }
-  return `export default function(vars: ${typeDefinition}): string {
-  return \`${templateBody.replace(/`/g, "\\`").replace(/\$(?!{)/g, "\\$")}\`;
-}`;
-}
-function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// src/stringify.ts
-import { remark } from "remark";
-import strip from "strip-markdown";
-async function mdToString(raw, options = {}) {
-  const {
-    collapse = true,
-    remarkPlugins = []
-  } = options;
-  let processor = remark();
-  for (const plugin of remarkPlugins) {
-    if (plugin && (typeof plugin === "function" || Array.isArray(plugin) && plugin.length > 0)) {
-      processor = processor.use(plugin);
-    }
-  }
-  processor = processor.use(strip);
-  const file = await processor.process(raw);
-  let result = String(file);
-  if (collapse) {
-    result = result.replace(/\s+/g, " ").trim();
-  } else {
-    result = result.trim();
-  }
-  return result;
-}
-
 // node_modules/.pnpm/unplugin@2.3.5/node_modules/unplugin/dist/context-D49cMElb.js
 var import_picomatch = __toESM(require_picomatch2(), 1);
 import { resolve } from "path";
@@ -9492,6 +9397,114 @@ function createUnplugin(factory) {
 // src/plugin.ts
 import { createFilter as createFilter2 } from "@rollup/pluginutils";
 import MagicString from "magic-string";
+
+// src/stringify.ts
+import { remark } from "remark";
+import strip from "strip-markdown";
+async function mdToString(raw, options = {}) {
+  const {
+    collapse = true,
+    remarkPlugins = []
+  } = options;
+  let processor = remark();
+  for (const plugin of remarkPlugins) {
+    if (plugin && (typeof plugin === "function" || Array.isArray(plugin) && plugin.length > 0)) {
+      processor = processor.use(plugin);
+    }
+  }
+  processor = processor.use(strip);
+  const file = await processor.process(raw);
+  let result = String(file);
+  if (collapse) {
+    result = result.replace(/\s+/g, " ").trim();
+  } else {
+    result = result.trim();
+  }
+  return result;
+}
+
+// src/extract.ts
+function extractPlaceholders(src) {
+  const re = /\{([a-zA-Z0-9_]+?)([\?#!@])?(?::([a-z]+))?\}/g;
+  const placeholders = [];
+  const seen = /* @__PURE__ */ new Set();
+  let match;
+  while (match = re.exec(src)) {
+    const [raw, name, modifier, explicitType] = match;
+    let type = explicitType;
+    let optional = false;
+    if (modifier === "?") {
+      optional = true;
+    } else if (modifier === "#") {
+      type = "number";
+    } else if (modifier === "!") {
+      type = "boolean";
+    } else if (modifier === "@") {
+      type = "json";
+    }
+    const key = `${name}${optional ? "?" : ""}${type ? `:${type}` : ""}`;
+    if (!seen.has(key) && name) {
+      seen.add(key);
+      const placeholder = {
+        name,
+        optional,
+        raw
+      };
+      if (type) {
+        placeholder.type = type;
+      }
+      placeholders.push(placeholder);
+    }
+  }
+  return placeholders;
+}
+function generateTypeDefinition(placeholders) {
+  const required = [];
+  const optional = [];
+  for (const placeholder of placeholders) {
+    const tsType = mapPlaceholderType(placeholder.type);
+    const prop = `${placeholder.name}: ${tsType}`;
+    if (placeholder.optional) {
+      optional.push(`${placeholder.name}?: ${tsType}`);
+    } else {
+      required.push(prop);
+    }
+  }
+  const allProps = [...required, ...optional];
+  return allProps.length > 0 ? `{ ${allProps.join("; ")} }` : "{}";
+}
+function mapPlaceholderType(type) {
+  switch (type) {
+    case "number":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "json":
+      return "Record<string, unknown>";
+    default:
+      return "string";
+  }
+}
+function generateTemplateFunction(content, placeholders) {
+  const typeDefinition = generateTypeDefinition(placeholders);
+  const hasPlaceholders = placeholders.length > 0;
+  if (!hasPlaceholders) {
+    return `export default ${JSON.stringify(content)};`;
+  }
+  let templateBody = content;
+  for (const placeholder of placeholders) {
+    const regex = new RegExp(escapeRegExp(placeholder.raw), "g");
+    templateBody = templateBody.replace(regex, `\${vars.${placeholder.name}}`);
+  }
+  return `export default function(vars: ${typeDefinition}): string {
+  return \`${templateBody.replace(/`/g, "\\`").replace(/\$(?!{)/g, "\\$")}\`;
+}`;
+}
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// src/plugin.ts
 var mdPromptPlugin = createUnplugin((options = {}) => {
   const filter = createFilter2(
     options.include || /\.md$/,
@@ -9511,7 +9524,32 @@ var mdPromptPlugin = createUnplugin((options = {}) => {
           map: s.generateMap({ hires: true })
         };
       } catch (error) {
-        this.error(`Failed to process markdown file: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const fileName = id.split("/").pop() || id;
+        if (errorMessage.includes("placeholder")) {
+          this.error(
+            `Invalid placeholder syntax in ${fileName}.
+Supported formats:
+  {name} - required string
+  {name?} - optional string
+  {age#} or {age:number} - number type
+  {active!} or {active:boolean} - boolean type
+  {data@} or {data:json} - JSON object
+Error: ${errorMessage}`
+          );
+        } else if (errorMessage.includes("type")) {
+          this.error(
+            `Type error in ${fileName}.
+Valid types: string (default), number, boolean, json
+Error: ${errorMessage}`
+          );
+        } else {
+          this.error(
+            `Failed to process ${fileName}.
+Error: ${errorMessage}
+See https://github.com/yourusername/md-prompt#troubleshooting for help.`
+          );
+        }
         return null;
       }
     },
@@ -9560,6 +9598,10 @@ function detectProject(cwd = process.cwd()) {
     };
     if (deps.next || existsSync(join(cwd, "next.config.js")) || existsSync(join(cwd, "next.config.mjs"))) {
       bundler = "next";
+    } else if (deps.astro || existsSync(join(cwd, "astro.config.mjs")) || existsSync(join(cwd, "astro.config.ts"))) {
+      bundler = "astro";
+    } else if (deps["@sveltejs/kit"] || existsSync(join(cwd, "svelte.config.js"))) {
+      bundler = "sveltekit";
     } else if (deps.vite || existsSync(join(cwd, "vite.config.ts")) || existsSync(join(cwd, "vite.config.js"))) {
       bundler = "vite";
     } else if (deps.webpack || existsSync(join(cwd, "webpack.config.js"))) {
@@ -9632,14 +9674,40 @@ export default {
         );
       }
       break;
+    case "astro":
+      messages.push(
+        "\u26A0\uFE0F  Astro detected. Add to your astro.config.mjs:",
+        "",
+        "import { defineConfig } from 'astro/config';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default defineConfig({",
+        "  vite: {",
+        "    plugins: [mdPrompt()]",
+        "  }",
+        "});"
+      );
+      break;
+    case "sveltekit":
+      messages.push(
+        "\u26A0\uFE0F  SvelteKit detected. Add to your vite.config.js:",
+        "",
+        "import { sveltekit } from '@sveltejs/kit/vite';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default {",
+        "  plugins: [sveltekit(), mdPrompt()]",
+        "};"
+      );
+      break;
     case "none":
       messages.push(
-        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
+        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build"
       );
       break;
     default:
       messages.push(
-        `\u{1F4A1} ${bundler} detected. Please configure manually or use CLI mode.`
+        `\u{1F4A1} ${bundler} detected. Add mdPrompt() to your bundler config.`
       );
   }
   return messages;
@@ -9815,6 +9883,7 @@ function getAvailableTemplates() {
 export {
   auto,
   autoSetup,
+  mdPrompt as default,
   detectProject,
   extractPlaceholders,
   generateTemplateFunction,

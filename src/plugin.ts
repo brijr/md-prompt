@@ -33,7 +33,34 @@ export const mdPromptPlugin = createUnplugin((options: MdPromptPluginOptions = {
           map: s.generateMap({ hires: true }),
         };
       } catch (error) {
-        this.error(`Failed to process markdown file: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const fileName = id.split('/').pop() || id;
+        
+        // Provide helpful error messages based on common issues
+        if (errorMessage.includes('placeholder')) {
+          this.error(
+            `Invalid placeholder syntax in ${fileName}.\n` +
+            `Supported formats:\n` +
+            `  {name} - required string\n` +
+            `  {name?} - optional string\n` +
+            `  {age#} or {age:number} - number type\n` +
+            `  {active!} or {active:boolean} - boolean type\n` +
+            `  {data@} or {data:json} - JSON object\n` +
+            `Error: ${errorMessage}`
+          );
+        } else if (errorMessage.includes('type')) {
+          this.error(
+            `Type error in ${fileName}.\n` +
+            `Valid types: string (default), number, boolean, json\n` +
+            `Error: ${errorMessage}`
+          );
+        } else {
+          this.error(
+            `Failed to process ${fileName}.\n` +
+            `Error: ${errorMessage}\n` +
+            `See https://github.com/yourusername/md-prompt#troubleshooting for help.`
+          );
+        }
         return null;
       }
     },

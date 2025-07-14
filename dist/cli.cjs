@@ -5198,18 +5198,29 @@ async function mdToString(raw, options = {}) {
 
 // src/extract.ts
 function extractPlaceholders(src) {
-  const re = /\{([a-zA-Z0-9_]+?)(\?)?(?::([a-z]+))?\}/g;
+  const re = /\{([a-zA-Z0-9_]+?)([\?#!@])?(?::([a-z]+))?\}/g;
   const placeholders = [];
   const seen = /* @__PURE__ */ new Set();
   let match;
   while (match = re.exec(src)) {
-    const [raw, name, optionalMarker, type] = match;
-    const key = `${name}${optionalMarker || ""}${type ? `:${type}` : ""}`;
+    const [raw, name, modifier, explicitType] = match;
+    let type = explicitType;
+    let optional = false;
+    if (modifier === "?") {
+      optional = true;
+    } else if (modifier === "#") {
+      type = "number";
+    } else if (modifier === "!") {
+      type = "boolean";
+    } else if (modifier === "@") {
+      type = "json";
+    }
+    const key = `${name}${optional ? "?" : ""}${type ? `:${type}` : ""}`;
     if (!seen.has(key) && name) {
       seen.add(key);
       const placeholder = {
         name,
-        optional: Boolean(optionalMarker),
+        optional,
         raw
       };
       if (type) {
@@ -5281,6 +5292,10 @@ function detectProject(cwd = process.cwd()) {
     };
     if (deps.next || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "next.config.js")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "next.config.mjs"))) {
       bundler = "next";
+    } else if (deps.astro || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "astro.config.mjs")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "astro.config.ts"))) {
+      bundler = "astro";
+    } else if (deps["@sveltejs/kit"] || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "svelte.config.js"))) {
+      bundler = "sveltekit";
     } else if (deps.vite || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "vite.config.ts")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "vite.config.js"))) {
       bundler = "vite";
     } else if (deps.webpack || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "webpack.config.js"))) {
@@ -5353,14 +5368,40 @@ export default {
         );
       }
       break;
+    case "astro":
+      messages.push(
+        "\u26A0\uFE0F  Astro detected. Add to your astro.config.mjs:",
+        "",
+        "import { defineConfig } from 'astro/config';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default defineConfig({",
+        "  vite: {",
+        "    plugins: [mdPrompt()]",
+        "  }",
+        "});"
+      );
+      break;
+    case "sveltekit":
+      messages.push(
+        "\u26A0\uFE0F  SvelteKit detected. Add to your vite.config.js:",
+        "",
+        "import { sveltekit } from '@sveltejs/kit/vite';",
+        "import mdPrompt from 'md-prompt';",
+        "",
+        "export default {",
+        "  plugins: [sveltekit(), mdPrompt()]",
+        "};"
+      );
+      break;
     case "none":
       messages.push(
-        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
+        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build"
       );
       break;
     default:
       messages.push(
-        `\u{1F4A1} ${bundler} detected. Please configure manually or use CLI mode.`
+        `\u{1F4A1} ${bundler} detected. Add mdPrompt() to your bundler config.`
       );
   }
   return messages;
@@ -5396,6 +5437,26 @@ You are a helpful assistant named {name}.
 // 2. Use in your code (with md-prompt/rollup plugin):
 import assistantPrompt from './prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
+    astro: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your .astro component:
+---
+import assistantPrompt from '../prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });
+---
+<p>{prompt}</p>`,
+    sveltekit: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your +page.svelte:
+<script>
+import assistantPrompt from '$lib/prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });
+</script>
+<p>{prompt}</p>`,
     none: `// 1. Create prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.
@@ -5581,6 +5642,15 @@ function getAvailableTemplates() {
 // src/cli.ts
 var program2 = new Command();
 program2.name("md-prompt").description("Markdown-to-prompt toolkit with typed placeholders").version("0.1.0");
+program2.command("setup").description("Quick setup - same as 'init'").option("--dry-run", "Show what would be configured without making changes").option("--template <framework>", "Scaffold starter files for a specific framework").action(() => {
+  program2.commands.find((cmd) => cmd.name() === "init")?.parseAsync(["", "", ...process.argv.slice(3)]);
+});
+program2.command("watch").description("Watch and build markdown files (defaults to **/*.md)").argument("[pattern]", "Glob pattern for markdown files", "**/*.md").option("-o, --outdir <dir>", "Output directory", "./generated").action((pattern, options) => {
+  program2.commands.find((cmd) => cmd.name() === "build")?.parseAsync(["", "", pattern, "--watch", "--outdir", options.outdir]);
+});
+program2.command("create <framework>").description("Create template files for a framework").option("-d, --dir <dir>", "Directory to create files in", ".").action((framework, options) => {
+  program2.commands.find((cmd) => cmd.name() === "template")?.parseAsync(["", "", framework, "--dir", options.dir]);
+});
 program2.command("init").description("Initialize md-prompt in your project with auto-detection").option("--dry-run", "Show what would be configured without making changes").option("--template <framework>", "Scaffold starter files for a specific framework (mastra, ai-sdk, openai, basic)").action(async (options) => {
   console.log("\u{1F50D} Detecting your project setup...\n");
   const projectInfo = detectProject();
@@ -5643,7 +5713,7 @@ program2.command("template <framework>").description("Scaffold starter files for
   console.log("2. Configure your environment variables");
   console.log("3. Run: npx md-prompt init (to setup bundler integration)");
 });
-program2.command("build").description("Build markdown files to JavaScript modules").argument("[pattern]", "Glob pattern for markdown files", "**/*.md").option("-w, --watch", "Watch for changes and rebuild").option("-o, --outdir <dir>", "Output directory", "dist").action(
+program2.command("build").description("Build markdown files to JavaScript modules").argument("[pattern]", "Glob pattern for markdown files", "**/*.md").option("-w, --watch", "Watch for changes and rebuild").option("-o, --outdir <dir>", "Output directory", "./generated").action(
   async (pattern, options) => {
     const files = await (0, import_glob.glob)(pattern);
     if (files.length === 0) {

@@ -29,18 +29,29 @@ async function mdToString(raw, options = {}) {
 
 // src/extract.ts
 function extractPlaceholders(src) {
-  const re = /\{([a-zA-Z0-9_]+?)(\?)?(?::([a-z]+))?\}/g;
+  const re = /\{([a-zA-Z0-9_]+?)([\?#!@])?(?::([a-z]+))?\}/g;
   const placeholders = [];
   const seen = /* @__PURE__ */ new Set();
   let match;
   while (match = re.exec(src)) {
-    const [raw, name, optionalMarker, type] = match;
-    const key = `${name}${optionalMarker || ""}${type ? `:${type}` : ""}`;
+    const [raw, name, modifier, explicitType] = match;
+    let type = explicitType;
+    let optional = false;
+    if (modifier === "?") {
+      optional = true;
+    } else if (modifier === "#") {
+      type = "number";
+    } else if (modifier === "!") {
+      type = "boolean";
+    } else if (modifier === "@") {
+      type = "json";
+    }
+    const key = `${name}${optional ? "?" : ""}${type ? `:${type}` : ""}`;
     if (!seen.has(key) && name) {
       seen.add(key);
       const placeholder = {
         name,
-        optional: Boolean(optionalMarker),
+        optional,
         raw
       };
       if (type) {

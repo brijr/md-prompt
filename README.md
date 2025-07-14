@@ -22,7 +22,7 @@ const prompt = weatherPrompt({
 pnpm add md-prompt
 
 # 2. Auto-setup everything (detects your bundler & configures)
-npx md-prompt init
+npx md-prompt setup
 
 # 3. Create your first prompt
 echo "# Assistant\nYou are {name} helping with {task}." > prompts/assistant.md
@@ -40,25 +40,25 @@ Get started instantly with your favorite AI framework:
 
 ### Mastra.ai
 ```bash
-npx md-prompt init --template mastra
+npx md-prompt create mastra
 ```
 Creates a complete weather agent with prompts, tools, and memory.
 
 ### AI SDK (Vercel)
 ```bash
-npx md-prompt init --template ai-sdk
+npx md-prompt create ai-sdk
 ```
 Ready-to-use chat assistant with streaming support.
 
 ### OpenAI Direct
 ```bash
-npx md-prompt init --template openai
+npx md-prompt create openai
 ```
 Simple OpenAI integration with typed prompts.
 
 ### Basic Template
 ```bash
-npx md-prompt init --template basic
+npx md-prompt create basic
 ```
 Minimal setup for any AI library.
 
@@ -93,10 +93,15 @@ You are a {role} AI assistant named {name}.
 
 **Types:**
 - `{name}` → `string` (required)
-- `{age:number}` → `number` (required)
-- `{active:boolean}` → `boolean` (required)
-- `{data:json}` → `Record<string, unknown>` (required)
+- `{age:number}` or `{age#}` → `number` (required)
+- `{active:boolean}` or `{active!}` → `boolean` (required)
+- `{data:json}` or `{data@}` → `Record<string, unknown>` (required)
 - `{city?}` → `string` (optional)
+
+**Shorthand Syntax (NEW!):**
+- `{count#}` → number
+- `{enabled!}` → boolean  
+- `{config@}` → json object
 
 ### Using in Code
 
@@ -117,9 +122,9 @@ const prompt = assistantPrompt({
 
 ### Framework Integration
 
-#### **Universal (Auto-Detection)**
+#### **Universal (Auto-Detection) - RECOMMENDED**
 ```typescript
-import { mdPrompt } from 'md-prompt/auto';
+import mdPrompt from 'md-prompt';
 
 // Works with any bundler - auto-detects your setup
 export default {
@@ -151,19 +156,22 @@ export default {
 
 #### **No Bundler (CLI)**
 ```bash
-# Build once
-npx md-prompt build src/**/*.md --outdir dist
+# Build once (defaults to **/*.md → ./generated)
+npx md-prompt build
 
-# Watch mode
-npx md-prompt build src/**/*.md --watch
+# Watch mode (simplified command)
+npx md-prompt watch
+
+# Custom patterns
+npx md-prompt build "src/**/*.md" --outdir dist
 
 # Import generated files
-import prompt from './dist/assistant.js';
+import prompt from './generated/assistant.js';
 ```
 
 ## 🛠️ CLI Commands
 
-### `npx md-prompt init`
+### `npx md-prompt setup` (or `init`)
 Auto-detects your project and sets up everything:
 - Configures bundler plugins
 - Adds TypeScript types
@@ -171,28 +179,32 @@ Auto-detects your project and sets up everything:
 - Shows framework-specific instructions
 
 ```bash
-npx md-prompt init                    # Auto-setup
-npx md-prompt init --dry-run         # Preview changes
-npx md-prompt init --template mastra  # With framework template
+npx md-prompt setup                   # Auto-setup (simplified)
+npx md-prompt setup --dry-run         # Preview changes
+npx md-prompt setup --template mastra # With framework template
 ```
 
-### `npx md-prompt template <framework>`
+### `npx md-prompt create <framework>`
 Scaffold starter files for specific frameworks:
 
 ```bash
-npx md-prompt template mastra    # Mastra.ai weather agent
-npx md-prompt template ai-sdk    # Vercel AI SDK chat
-npx md-prompt template openai    # OpenAI direct integration
-npx md-prompt template basic     # Minimal setup
+npx md-prompt create mastra    # Mastra.ai weather agent
+npx md-prompt create ai-sdk    # Vercel AI SDK chat
+npx md-prompt create openai    # OpenAI direct integration
+npx md-prompt create basic     # Minimal setup
 ```
 
-### `npx md-prompt build`
+### `npx md-prompt build` & `watch`
 Compile markdown files (for projects without bundler integration):
 
 ```bash
-npx md-prompt build "src/**/*.md"           # Build once
-npx md-prompt build "src/**/*.md" --watch   # Watch mode
-npx md-prompt build "src/**/*.md" --outdir dist  # Custom output
+# Simplified commands with smart defaults
+npx md-prompt build               # Build all .md files to ./generated
+npx md-prompt watch               # Watch mode with defaults
+
+# Custom options
+npx md-prompt build "src/**/*.md" --outdir dist
+npx md-prompt watch "prompts/*.md" -o ./dist
 ```
 
 ## 🌟 Real-World Examples
@@ -307,17 +319,24 @@ Your `tsconfig.json` is automatically updated, but you can manually add:
 }
 ```
 
-## 🚧 Migration from v0.0.1
+## 🚧 What's New
 
-All existing code continues to work! New features are additive:
+All existing code continues to work! New features make it even simpler:
 
 ```typescript
 // Old way (still works)
-import { mdPromptPlugin } from 'md-prompt';
+import { mdPromptPlugin } from 'md-prompt/vite';
 
-// New way (easier)
-import { mdPrompt } from 'md-prompt/auto';  // Auto-detects environment
+// New way (recommended - auto-detects environment)
+import mdPrompt from 'md-prompt';
 ```
+
+**New Features:**
+- ✨ Default export auto-detects your bundler
+- 🎯 Simplified CLI commands (`setup`, `watch`, `create`)
+- 🚀 Shorthand placeholder syntax (`{age#}`, `{active!}`, `{data@}`)
+- 📝 Better error messages with examples
+- 🎨 Smarter defaults (output to `./generated` by default)
 
 ## 📦 API Reference
 
@@ -337,10 +356,11 @@ import {
 ### Plugin Exports
 
 ```typescript
+import mdPrompt from 'md-prompt';                  // Default: auto-detection (RECOMMENDED)
+import { mdPrompt, auto } from 'md-prompt';        // Named exports for auto-detection
 import { mdPromptPlugin } from 'md-prompt';        // Universal plugin
 import { mdPromptPlugin } from 'md-prompt/vite';   // Vite-specific
 import { mdPromptPlugin } from 'md-prompt/next';   // Next.js-specific
-import { mdPrompt, auto } from 'md-prompt/auto';   // Auto-detection
 ```
 
 ## 🤝 Contributing
