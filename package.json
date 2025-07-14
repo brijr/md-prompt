@@ -28,7 +28,7 @@
     }
   },
   "bin": {
-    "md-prompt": "./dist/cli.cjs"
+    "md-prompt": "dist/cli.cjs"
   },
   "files": [
     "dist",
