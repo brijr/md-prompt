@@ -1,6 +1,6 @@
 {
   "name": "md-prompt",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Markdown-to-prompt toolkit with typed placeholders and zero runtime overhead",
   "type": "module",
   "main": "dist/index.js",
@@ -10,6 +10,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./auto": {
+      "import": "./dist/universal-plugin.js",
+      "types": "./dist/universal-plugin.d.ts"
     },
     "./vite": {
       "import": "./dist/vite.js",
