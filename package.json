@@ -1,6 +1,6 @@
 {
   "name": "md-prompt",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Markdown-to-prompt toolkit with typed placeholders and zero runtime overhead",
   "type": "module",
   "main": "dist/index.js",
