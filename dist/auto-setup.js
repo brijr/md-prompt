@@ -1,36 +1,19 @@
+// src/auto-setup.ts
 import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-
-interface ProjectInfo {
-  bundler: "vite" | "next" | "webpack" | "rollup" | "none";
-  hasTypeScript: boolean;
-  projectRoot: string;
-}
-
-export function detectProject(cwd: string = process.cwd()): ProjectInfo {
+function detectProject(cwd = process.cwd()) {
   const packageJsonPath = join(cwd, "package.json");
   const hasPackageJson = existsSync(packageJsonPath);
-
-  let bundler: ProjectInfo["bundler"] = "none";
-
+  let bundler = "none";
   if (hasPackageJson) {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     const deps = {
       ...packageJson.dependencies,
-      ...packageJson.devDependencies,
+      ...packageJson.devDependencies
     };
-
-    if (
-      deps.next ||
-      existsSync(join(cwd, "next.config.js")) ||
-      existsSync(join(cwd, "next.config.mjs"))
-    ) {
+    if (deps.next || existsSync(join(cwd, "next.config.js")) || existsSync(join(cwd, "next.config.mjs"))) {
       bundler = "next";
-    } else if (
-      deps.vite ||
-      existsSync(join(cwd, "vite.config.ts")) ||
-      existsSync(join(cwd, "vite.config.js"))
-    ) {
+    } else if (deps.vite || existsSync(join(cwd, "vite.config.ts")) || existsSync(join(cwd, "vite.config.js"))) {
       bundler = "vite";
     } else if (deps.webpack || existsSync(join(cwd, "webpack.config.js"))) {
       bundler = "webpack";
@@ -38,50 +21,36 @@ export function detectProject(cwd: string = process.cwd()): ProjectInfo {
       bundler = "rollup";
     }
   }
-
-  const hasTypeScript =
-    existsSync(join(cwd, "tsconfig.json")) ||
-    existsSync(join(cwd, "tsconfig.json"));
-
+  const hasTypeScript = existsSync(join(cwd, "tsconfig.json")) || existsSync(join(cwd, "tsconfig.json"));
   return {
     bundler,
     hasTypeScript,
-    projectRoot: cwd,
+    projectRoot: cwd
   };
 }
-
-export function autoSetup(projectInfo: ProjectInfo): string[] {
-  const messages: string[] = [];
+function autoSetup(projectInfo) {
+  const messages = [];
   const { bundler, hasTypeScript, projectRoot } = projectInfo;
-
-  // Auto-configure TypeScript if present
   if (hasTypeScript) {
     const tsconfigPath = join(projectRoot, "tsconfig.json");
     try {
       const tsconfig = JSON.parse(readFileSync(tsconfigPath, "utf-8"));
-
       if (!tsconfig.compilerOptions) {
         tsconfig.compilerOptions = {};
       }
-
       const currentTypes = tsconfig.compilerOptions.types || [];
       if (!currentTypes.includes("md-prompt")) {
         tsconfig.compilerOptions.types = [...currentTypes, "md-prompt"];
         writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
-        messages.push("✅ Added md-prompt to tsconfig.json types");
+        messages.push("\u2705 Added md-prompt to tsconfig.json types");
       }
     } catch (error) {
-      messages.push("⚠️  Could not automatically update tsconfig.json");
+      messages.push("\u26A0\uFE0F  Could not automatically update tsconfig.json");
     }
   }
-
-  // Generate config for detected bundler
   switch (bundler) {
     case "vite":
-      const viteConfigPath = existsSync(join(projectRoot, "vite.config.ts"))
-        ? join(projectRoot, "vite.config.ts")
-        : join(projectRoot, "vite.config.js");
-
+      const viteConfigPath = existsSync(join(projectRoot, "vite.config.ts")) ? join(projectRoot, "vite.config.ts") : join(projectRoot, "vite.config.js");
       if (!existsSync(viteConfigPath)) {
         const viteConfig = `import { defineConfig } from 'vite';
 import { mdPromptPlugin } from 'md-prompt';
@@ -90,14 +59,13 @@ export default defineConfig({
   plugins: [mdPromptPlugin()],
 });`;
         writeFileSync(viteConfigPath, viteConfig);
-        messages.push("✅ Created vite.config.ts with md-prompt plugin");
+        messages.push("\u2705 Created vite.config.ts with md-prompt plugin");
       } else {
         messages.push(
-          "⚠️  Please add mdPromptPlugin() to your vite.config.ts plugins array"
+          "\u26A0\uFE0F  Please add mdPromptPlugin() to your vite.config.ts plugins array"
         );
       }
       break;
-
     case "next":
       const nextConfigPath = join(projectRoot, "next.config.js");
       if (!existsSync(nextConfigPath)) {
@@ -110,32 +78,27 @@ export default {
   },
 };`;
         writeFileSync(nextConfigPath, nextConfig);
-        messages.push("✅ Created next.config.js with md-prompt plugin");
+        messages.push("\u2705 Created next.config.js with md-prompt plugin");
       } else {
         messages.push(
-          "⚠️  Please add mdPromptPlugin() to your next.config.js webpack plugins"
+          "\u26A0\uFE0F  Please add mdPromptPlugin() to your next.config.js webpack plugins"
         );
       }
       break;
-
     case "none":
       messages.push(
-        "💡 No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
+        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
       );
       break;
-
     default:
       messages.push(
-        `💡 ${bundler} detected. Please configure manually or use CLI mode.`
+        `\u{1F4A1} ${bundler} detected. Please configure manually or use CLI mode.`
       );
   }
-
   return messages;
 }
-
-export function generateQuickStart(projectInfo: ProjectInfo): string {
+function generateQuickStart(projectInfo) {
   const { bundler } = projectInfo;
-
   const examples = {
     vite: `// 1. Create src/prompts/assistant.md:
 # AI Assistant
@@ -144,7 +107,6 @@ You are a helpful assistant named {name}.
 // 2. Use in your code:
 import assistantPrompt from './prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
-
     next: `// 1. Create src/prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.
@@ -152,7 +114,6 @@ You are a helpful assistant named {name}.
 // 2. Use in your component:
 import assistantPrompt from '../prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
-
     webpack: `// 1. Create src/prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.
@@ -160,7 +121,6 @@ You are a helpful assistant named {name}.
 // 2. Use in your code (with md-prompt/webpack loader):
 import assistantPrompt from './prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
-
     rollup: `// 1. Create src/prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.
@@ -168,7 +128,6 @@ You are a helpful assistant named {name}.
 // 2. Use in your code (with md-prompt/rollup plugin):
 import assistantPrompt from './prompts/assistant.md';
 const prompt = assistantPrompt({ name: 'Claude' });`,
-
     none: `// 1. Create prompts/assistant.md:
 # AI Assistant
 You are a helpful assistant named {name}.
@@ -178,8 +137,13 @@ npx md-prompt build prompts/**/*.md --outdir src/generated
 
 // 3. Import generated file:
 import assistantPrompt from './generated/assistant.js';
-const prompt = assistantPrompt({ name: 'Claude' });`,
+const prompt = assistantPrompt({ name: 'Claude' });`
   };
-
   return examples[bundler] || examples.none;
 }
+export {
+  autoSetup,
+  detectProject,
+  generateQuickStart
+};
+//# sourceMappingURL=auto-setup.js.map

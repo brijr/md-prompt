@@ -6,9 +6,6 @@ import type { MdPromptPluginOptions } from "./plugin.js";
  * and applies the correct configuration. No manual setup required!
  */
 export function mdPrompt(options: MdPromptPluginOptions = {}) {
-  // Auto-detect environment and return appropriate plugin
-  const plugin = mdPromptPlugin(options);
-
   // For Node.js environments, check if we're in a build process
   if (typeof process !== "undefined" && process.env) {
     // Auto-detect common build environments
@@ -26,21 +23,18 @@ export function mdPrompt(options: MdPromptPluginOptions = {}) {
       process.env.npm_lifecycle_script?.includes("webpack") ||
       process.argv.some((arg) => arg.includes("webpack"));
 
-    // Add environment-specific optimizations
+    // Return environment-specific plugin
     if (isVite) {
-      // Vite-specific optimizations
-      return plugin.vite();
+      return mdPromptPlugin.vite(options);
     } else if (isNext) {
-      // Next.js-specific optimizations
-      return plugin.webpack();
+      return mdPromptPlugin.webpack(options);
     } else if (isWebpack) {
-      // Webpack-specific optimizations
-      return plugin.webpack();
+      return mdPromptPlugin.webpack(options);
     }
   }
 
-  // Return the base plugin (works with unplugin)
-  return plugin;
+  // Return the raw unplugin (works with unplugin-compatible bundlers)
+  return mdPromptPlugin.webpack(options);
 }
 
 /**

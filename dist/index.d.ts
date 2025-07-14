@@ -1,4 +1,7 @@
 export { M as MdPromptPluginOptions, S as StringifyOptions, a as mdPromptPlugin, m as mdToString } from './plugin-DjmX6cx1.js';
+export { auto, mdPrompt } from './universal-plugin.js';
+export { autoSetup, detectProject } from './auto-setup.js';
+export { TemplateOptions, getAvailableTemplates, scaffoldTemplate } from './templates.js';
 import 'unplugin';
 
 interface PlaceholderInfo {

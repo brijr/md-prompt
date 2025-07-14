@@ -9529,10 +9529,26 @@ var mdPromptPlugin = createUnplugin((options = {}) => {
   };
 });
 
-// src/vite.ts
-var vite_default = mdPromptPlugin;
+// src/universal-plugin.ts
+function mdPrompt(options = {}) {
+  if (typeof process !== "undefined" && process.env) {
+    const isVite = process.env.VITE_CJS_TRACE || process.env.npm_lifecycle_script?.includes("vite") || process.argv.some((arg) => arg.includes("vite"));
+    const isNext = process.env.NEXT_RUNTIME || process.env.npm_lifecycle_script?.includes("next") || process.argv.some((arg) => arg.includes("next"));
+    const isWebpack = process.env.npm_lifecycle_script?.includes("webpack") || process.argv.some((arg) => arg.includes("webpack"));
+    if (isVite) {
+      return mdPromptPlugin.vite(options);
+    } else if (isNext) {
+      return mdPromptPlugin.webpack(options);
+    } else if (isWebpack) {
+      return mdPromptPlugin.webpack(options);
+    }
+  }
+  return mdPromptPlugin.webpack(options);
+}
+var auto = mdPrompt;
 export {
-  vite_default as default,
+  auto,
+  mdPrompt,
   mdPromptPlugin
 };
-//# sourceMappingURL=vite.js.map
+//# sourceMappingURL=universal-plugin.js.map

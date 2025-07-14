@@ -1,13 +1,7 @@
+// src/templates.ts
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
-
-export interface TemplateOptions {
-  framework?: "mastra" | "ai-sdk" | "openai" | "basic";
-  promptsDir?: string;
-  typescript?: boolean;
-}
-
-const templates: Record<string, Record<string, string>> = {
+var templates = {
   basic: {
     "prompts/assistant.md": `# AI Assistant
 
@@ -20,7 +14,6 @@ You provide accurate and helpful information on a wide variety of topics.
 - Be {tone?} in your responses
 - Keep answers {length?} unless asked for more detail
 - If you don't know something, say so honestly`,
-
     "example.ts": `import assistantPrompt from './prompts/assistant.md';
 
 // Basic usage
@@ -30,9 +23,8 @@ const prompt = assistantPrompt({
   length: 'concise'
 });
 
-console.log(prompt);`,
+console.log(prompt);`
   },
-
   mastra: {
     "src/prompts/weather-agent.md": `# Weather Assistant
 
@@ -49,7 +41,6 @@ Your primary function is to help users get weather details for specific location
 - If the user asks for activities, respond in the format they request.
 
 Use the weatherTool to fetch current weather data.`,
-
     "src/agents/weather-agent.ts": `import { anthropic } from "@ai-sdk/anthropic";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
@@ -66,15 +57,13 @@ export const weatherAgent = new Agent({
     }),
   }),
 });`,
-
     "src/mastra/index.ts": `import { Mastra } from "@mastra/core/mastra";
 import { weatherAgent } from "../agents/weather-agent";
 
 export const mastra = new Mastra({
   agents: { weatherAgent }
-});`,
+});`
   },
-
   "ai-sdk": {
     "prompts/chat-assistant.md": `# Chat Assistant
 
@@ -90,7 +79,6 @@ You are a conversational AI assistant that helps users with various tasks.
 - Maintain context throughout the conversation
 - Ask clarifying questions when needed
 - Provide actionable advice when possible`,
-
     "src/chat.ts": `import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import chatPrompt from '../prompts/chat-assistant.md';
@@ -112,9 +100,8 @@ export async function generateResponse(message: string, context: any = {}) {
   });
 
   return text;
-}`,
+}`
   },
-
   openai: {
     "prompts/completion.md": `# Task Assistant
 
@@ -130,7 +117,6 @@ You are an AI assistant that helps complete various tasks efficiently.
 - Focus on the specific task at hand
 - Provide clear, actionable responses
 - Follow the specified output format if provided`,
-
     "src/openai-client.ts": `import OpenAI from 'openai';
 import completionPrompt from '../prompts/completion.md';
 
@@ -152,28 +138,20 @@ export async function completeTask(task: {
   });
 
   return completion.choices[0]?.message?.content;
-}`,
-  },
+}`
+  }
 };
-
-export function scaffoldTemplate(
-  framework: TemplateOptions["framework"] = "basic",
-  options: TemplateOptions = {}
-) {
+function scaffoldTemplate(framework = "basic", options = {}) {
   const { promptsDir = "." } = options;
   const templateFiles = templates[framework || "basic"] || templates.basic;
-
-  const createdFiles: string[] = [];
-
+  const createdFiles = [];
   if (!templateFiles) {
     console.warn(`No templates found for framework: ${framework}, using basic templates`);
     return createdFiles;
   }
-
   for (const [filePath, content] of Object.entries(templateFiles)) {
     const fullPath = join(promptsDir, filePath);
     const dir = join(fullPath, "..");
-
     try {
       mkdirSync(dir, { recursive: true });
       writeFileSync(fullPath, content);
@@ -182,10 +160,13 @@ export function scaffoldTemplate(
       console.error(`Failed to create ${filePath}:`, error);
     }
   }
-
   return createdFiles;
 }
-
-export function getAvailableTemplates(): string[] {
+function getAvailableTemplates() {
   return Object.keys(templates);
 }
+export {
+  getAvailableTemplates,
+  scaffoldTemplate
+};
+//# sourceMappingURL=templates.js.map

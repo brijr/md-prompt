@@ -5168,7 +5168,7 @@ function watch(paths, options = {}) {
 
 // src/cli.ts
 var import_promises4 = require("fs/promises");
-var import_path = require("path");
+var import_path3 = require("path");
 var import_glob = require("glob");
 
 // src/stringify.ts
@@ -5181,7 +5181,7 @@ async function mdToString(raw, options = {}) {
   } = options;
   let processor = (0, import_remark.remark)();
   for (const plugin of remarkPlugins) {
-    if (plugin) {
+    if (plugin && (typeof plugin === "function" || Array.isArray(plugin) && plugin.length > 0)) {
       processor = processor.use(plugin);
     }
   }
@@ -5266,52 +5266,430 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// src/auto-setup.ts
+var import_fs3 = require("fs");
+var import_path = require("path");
+function detectProject(cwd = process.cwd()) {
+  const packageJsonPath = (0, import_path.join)(cwd, "package.json");
+  const hasPackageJson = (0, import_fs3.existsSync)(packageJsonPath);
+  let bundler = "none";
+  if (hasPackageJson) {
+    const packageJson = JSON.parse((0, import_fs3.readFileSync)(packageJsonPath, "utf-8"));
+    const deps = {
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies
+    };
+    if (deps.next || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "next.config.js")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "next.config.mjs"))) {
+      bundler = "next";
+    } else if (deps.vite || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "vite.config.ts")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "vite.config.js"))) {
+      bundler = "vite";
+    } else if (deps.webpack || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "webpack.config.js"))) {
+      bundler = "webpack";
+    } else if (deps.rollup || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "rollup.config.js"))) {
+      bundler = "rollup";
+    }
+  }
+  const hasTypeScript = (0, import_fs3.existsSync)((0, import_path.join)(cwd, "tsconfig.json")) || (0, import_fs3.existsSync)((0, import_path.join)(cwd, "tsconfig.json"));
+  return {
+    bundler,
+    hasTypeScript,
+    projectRoot: cwd
+  };
+}
+function autoSetup(projectInfo) {
+  const messages = [];
+  const { bundler, hasTypeScript, projectRoot } = projectInfo;
+  if (hasTypeScript) {
+    const tsconfigPath = (0, import_path.join)(projectRoot, "tsconfig.json");
+    try {
+      const tsconfig = JSON.parse((0, import_fs3.readFileSync)(tsconfigPath, "utf-8"));
+      if (!tsconfig.compilerOptions) {
+        tsconfig.compilerOptions = {};
+      }
+      const currentTypes = tsconfig.compilerOptions.types || [];
+      if (!currentTypes.includes("md-prompt")) {
+        tsconfig.compilerOptions.types = [...currentTypes, "md-prompt"];
+        (0, import_fs3.writeFileSync)(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+        messages.push("\u2705 Added md-prompt to tsconfig.json types");
+      }
+    } catch (error) {
+      messages.push("\u26A0\uFE0F  Could not automatically update tsconfig.json");
+    }
+  }
+  switch (bundler) {
+    case "vite":
+      const viteConfigPath = (0, import_fs3.existsSync)((0, import_path.join)(projectRoot, "vite.config.ts")) ? (0, import_path.join)(projectRoot, "vite.config.ts") : (0, import_path.join)(projectRoot, "vite.config.js");
+      if (!(0, import_fs3.existsSync)(viteConfigPath)) {
+        const viteConfig = `import { defineConfig } from 'vite';
+import { mdPromptPlugin } from 'md-prompt';
+
+export default defineConfig({
+  plugins: [mdPromptPlugin()],
+});`;
+        (0, import_fs3.writeFileSync)(viteConfigPath, viteConfig);
+        messages.push("\u2705 Created vite.config.ts with md-prompt plugin");
+      } else {
+        messages.push(
+          "\u26A0\uFE0F  Please add mdPromptPlugin() to your vite.config.ts plugins array"
+        );
+      }
+      break;
+    case "next":
+      const nextConfigPath = (0, import_path.join)(projectRoot, "next.config.js");
+      if (!(0, import_fs3.existsSync)(nextConfigPath)) {
+        const nextConfig = `import { mdPromptPlugin } from 'md-prompt/next';
+
+export default {
+  webpack: (config) => {
+    config.plugins.push(mdPromptPlugin());
+    return config;
+  },
+};`;
+        (0, import_fs3.writeFileSync)(nextConfigPath, nextConfig);
+        messages.push("\u2705 Created next.config.js with md-prompt plugin");
+      } else {
+        messages.push(
+          "\u26A0\uFE0F  Please add mdPromptPlugin() to your next.config.js webpack plugins"
+        );
+      }
+      break;
+    case "none":
+      messages.push(
+        "\u{1F4A1} No bundler detected. You can use the CLI: npx md-prompt build src/**/*.md"
+      );
+      break;
+    default:
+      messages.push(
+        `\u{1F4A1} ${bundler} detected. Please configure manually or use CLI mode.`
+      );
+  }
+  return messages;
+}
+function generateQuickStart(projectInfo) {
+  const { bundler } = projectInfo;
+  const examples = {
+    vite: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your code:
+import assistantPrompt from './prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });`,
+    next: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your component:
+import assistantPrompt from '../prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });`,
+    webpack: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your code (with md-prompt/webpack loader):
+import assistantPrompt from './prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });`,
+    rollup: `// 1. Create src/prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Use in your code (with md-prompt/rollup plugin):
+import assistantPrompt from './prompts/assistant.md';
+const prompt = assistantPrompt({ name: 'Claude' });`,
+    none: `// 1. Create prompts/assistant.md:
+# AI Assistant
+You are a helpful assistant named {name}.
+
+// 2. Build with CLI:
+npx md-prompt build prompts/**/*.md --outdir src/generated
+
+// 3. Import generated file:
+import assistantPrompt from './generated/assistant.js';
+const prompt = assistantPrompt({ name: 'Claude' });`
+  };
+  return examples[bundler] || examples.none;
+}
+
+// src/templates.ts
+var import_fs4 = require("fs");
+var import_path2 = require("path");
+var templates = {
+  basic: {
+    "prompts/assistant.md": `# AI Assistant
+
+You are a helpful AI assistant named {name}.
+
+## Your Role
+You provide accurate and helpful information on a wide variety of topics.
+
+## Instructions
+- Be {tone?} in your responses
+- Keep answers {length?} unless asked for more detail
+- If you don't know something, say so honestly`,
+    "example.ts": `import assistantPrompt from './prompts/assistant.md';
+
+// Basic usage
+const prompt = assistantPrompt({
+  name: 'Claude',
+  tone: 'friendly',
+  length: 'concise'
+});
+
+console.log(prompt);`
+  },
+  mastra: {
+    "src/prompts/weather-agent.md": `# Weather Assistant
+
+You are a helpful weather assistant named {name} that provides accurate weather information and can help planning activities based on the weather.
+
+Your primary function is to help users get weather details for specific locations. When responding:
+
+- Always ask for a location if none is provided
+- If the location name isn't in English, please translate it
+- If giving a location with multiple parts (e.g. "New York, NY"), use the most relevant part (e.g. "New York")
+- Include relevant details like humidity, wind conditions, and precipitation
+- Keep responses concise but informative
+- If the user asks for activities and provides the weather forecast, suggest activities based on the weather forecast.
+- If the user asks for activities, respond in the format they request.
+
+Use the weatherTool to fetch current weather data.`,
+    "src/agents/weather-agent.ts": `import { anthropic } from "@ai-sdk/anthropic";
+import { Agent } from "@mastra/core/agent";
+import { Memory } from "@mastra/memory";
+import { LibSQLStore } from "@mastra/libsql";
+import weatherPrompt from "../prompts/weather-agent.md";
+
+export const weatherAgent = new Agent({
+  name: "Weather Agent",
+  instructions: weatherPrompt({ name: "Claude" }),
+  model: anthropic("claude-3-5-sonnet-20241022"),
+  memory: new Memory({
+    storage: new LibSQLStore({
+      url: "file:../mastra.db",
+    }),
+  }),
+});`,
+    "src/mastra/index.ts": `import { Mastra } from "@mastra/core/mastra";
+import { weatherAgent } from "../agents/weather-agent";
+
+export const mastra = new Mastra({
+  agents: { weatherAgent }
+});`
+  },
+  "ai-sdk": {
+    "prompts/chat-assistant.md": `# Chat Assistant
+
+You are a conversational AI assistant that helps users with various tasks.
+
+## Context
+- Conversation ID: {conversationId}
+- User: {userName?}
+- Session: {sessionId}
+
+## Instructions
+- Be helpful and {tone}
+- Maintain context throughout the conversation
+- Ask clarifying questions when needed
+- Provide actionable advice when possible`,
+    "src/chat.ts": `import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
+import chatPrompt from '../prompts/chat-assistant.md';
+
+export async function generateResponse(message: string, context: any = {}) {
+  const prompt = chatPrompt({
+    conversationId: context.conversationId || 'default',
+    userName: context.userName,
+    sessionId: context.sessionId || Date.now().toString(),
+    tone: 'friendly'
+  });
+
+  const { text } = await generateText({
+    model: openai('gpt-4'),
+    messages: [
+      { role: 'system', content: prompt },
+      { role: 'user', content: message }
+    ],
+  });
+
+  return text;
+}`
+  },
+  openai: {
+    "prompts/completion.md": `# Task Assistant
+
+You are an AI assistant that helps complete various tasks efficiently.
+
+## Task Details
+- Task: {taskType}
+- Context: {context?}
+- Requirements: {requirements?}
+- Output format: {outputFormat?}
+
+## Instructions
+- Focus on the specific task at hand
+- Provide clear, actionable responses
+- Follow the specified output format if provided`,
+    "src/openai-client.ts": `import OpenAI from 'openai';
+import completionPrompt from '../prompts/completion.md';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export async function completeTask(task: {
+  taskType: string;
+  context?: string;
+  requirements?: string;
+  outputFormat?: string;
+}) {
+  const prompt = completionPrompt(task);
+
+  const completion = await openai.chat.completions.create({
+    messages: [{ role: 'user', content: prompt }],
+    model: 'gpt-4',
+  });
+
+  return completion.choices[0]?.message?.content;
+}`
+  }
+};
+function scaffoldTemplate(framework = "basic", options = {}) {
+  const { promptsDir = "." } = options;
+  const templateFiles = templates[framework || "basic"] || templates.basic;
+  const createdFiles = [];
+  if (!templateFiles) {
+    console.warn(`No templates found for framework: ${framework}, using basic templates`);
+    return createdFiles;
+  }
+  for (const [filePath, content] of Object.entries(templateFiles)) {
+    const fullPath = (0, import_path2.join)(promptsDir, filePath);
+    const dir = (0, import_path2.join)(fullPath, "..");
+    try {
+      (0, import_fs4.mkdirSync)(dir, { recursive: true });
+      (0, import_fs4.writeFileSync)(fullPath, content);
+      createdFiles.push(filePath);
+    } catch (error) {
+      console.error(`Failed to create ${filePath}:`, error);
+    }
+  }
+  return createdFiles;
+}
+function getAvailableTemplates() {
+  return Object.keys(templates);
+}
+
 // src/cli.ts
 var program2 = new Command();
 program2.name("md-prompt").description("Markdown-to-prompt toolkit with typed placeholders").version("0.1.0");
-program2.command("build").description("Build markdown files to JavaScript modules").argument("[pattern]", "Glob pattern for markdown files", "**/*.md").option("-w, --watch", "Watch for changes and rebuild").option("-o, --outdir <dir>", "Output directory", "dist").action(async (pattern, options) => {
-  const files = await (0, import_glob.glob)(pattern);
-  if (files.length === 0) {
-    console.log("No markdown files found");
+program2.command("init").description("Initialize md-prompt in your project with auto-detection").option("--dry-run", "Show what would be configured without making changes").option("--template <framework>", "Scaffold starter files for a specific framework (mastra, ai-sdk, openai, basic)").action(async (options) => {
+  console.log("\u{1F50D} Detecting your project setup...\n");
+  const projectInfo = detectProject();
+  console.log(`\u{1F4E6} Project detected:`);
+  console.log(`  Bundler: ${projectInfo.bundler}`);
+  console.log(`  TypeScript: ${projectInfo.hasTypeScript ? "Yes" : "No"}`);
+  console.log();
+  if (options.dryRun) {
+    console.log("\u{1F9EA} Dry run mode - no files will be modified\n");
+    const messages = autoSetup({ ...projectInfo });
+    messages.forEach((msg) => console.log(msg));
+  } else {
+    console.log("\u2699\uFE0F  Setting up md-prompt...\n");
+    const messages = autoSetup(projectInfo);
+    messages.forEach((msg) => console.log(msg));
+  }
+  if (options.template) {
+    const availableTemplates = getAvailableTemplates();
+    if (availableTemplates.includes(options.template)) {
+      console.log(`
+\u{1F4C1} Scaffolding ${options.template} template...
+`);
+      if (!options.dryRun) {
+        const createdFiles = scaffoldTemplate(options.template, {
+          promptsDir: process.cwd(),
+          typescript: projectInfo.hasTypeScript
+        });
+        createdFiles.forEach((file) => console.log(`\u2705 Created: ${file}`));
+      } else {
+        console.log(`Would create ${options.template} template files`);
+      }
+    } else {
+      console.log(`
+\u274C Unknown template: ${options.template}`);
+      console.log(`Available templates: ${availableTemplates.join(", ")}`);
+    }
+  }
+  console.log("\n\u{1F4DA} Quick Start:");
+  console.log(generateQuickStart(projectInfo));
+  console.log("\n\u{1F389} Setup complete! Happy prompting!");
+});
+program2.command("template <framework>").description("Scaffold starter files for a specific framework").option("-d, --dir <directory>", "Output directory", ".").action(async (framework, options) => {
+  const availableTemplates = getAvailableTemplates();
+  if (!availableTemplates.includes(framework)) {
+    console.log(`\u274C Unknown template: ${framework}`);
+    console.log(`Available templates: ${availableTemplates.join(", ")}`);
     return;
   }
-  const buildFiles = async () => {
-    console.log(`Building ${files.length} files...`);
-    for (const file of files) {
-      await buildFile(file, options.outdir);
-    }
-    console.log("Build complete");
-  };
-  await buildFiles();
-  if (options.watch) {
-    console.log("Watching for changes...");
-    const watcher = watch(files);
-    watcher.on("change", async (path) => {
-      console.log(`File changed: ${path}`);
-      await buildFile(path, options.outdir);
-    });
-    watcher.on("add", async (path) => {
-      console.log(`File added: ${path}`);
-      await buildFile(path, options.outdir);
-    });
-    process.on("SIGINT", () => {
-      watcher.close();
-      process.exit(0);
-    });
-  }
+  console.log(`\u{1F4C1} Scaffolding ${framework} template...
+`);
+  const createdFiles = scaffoldTemplate(framework, {
+    promptsDir: options.dir,
+    typescript: true
+  });
+  createdFiles.forEach((file) => console.log(`\u2705 Created: ${file}`));
+  console.log(`
+\u{1F389} ${framework} template scaffolded successfully!`);
+  console.log("\n\u{1F4DA} Next steps:");
+  console.log("1. Install dependencies if needed");
+  console.log("2. Configure your environment variables");
+  console.log("3. Run: npx md-prompt init (to setup bundler integration)");
 });
+program2.command("build").description("Build markdown files to JavaScript modules").argument("[pattern]", "Glob pattern for markdown files", "**/*.md").option("-w, --watch", "Watch for changes and rebuild").option("-o, --outdir <dir>", "Output directory", "dist").action(
+  async (pattern, options) => {
+    const files = await (0, import_glob.glob)(pattern);
+    if (files.length === 0) {
+      console.log("No markdown files found");
+      return;
+    }
+    const buildFiles = async () => {
+      console.log(`Building ${files.length} files...`);
+      for (const file of files) {
+        await buildFile(file, options.outdir);
+      }
+      console.log("Build complete");
+    };
+    await buildFiles();
+    if (options.watch) {
+      console.log("Watching for changes...");
+      const watcher = watch(files);
+      watcher.on("change", async (path) => {
+        console.log(`File changed: ${path}`);
+        await buildFile(path, options.outdir);
+      });
+      watcher.on("add", async (path) => {
+        console.log(`File added: ${path}`);
+        await buildFile(path, options.outdir);
+      });
+      process.on("SIGINT", () => {
+        watcher.close();
+        process.exit(0);
+      });
+    }
+  }
+);
 async function buildFile(inputPath, outdir) {
   try {
     const content = await (0, import_promises4.readFile)(inputPath, "utf-8");
     const stringified = await mdToString(content);
     const placeholders = extractPlaceholders(stringified);
     const jsCode = generateTemplateFunction(stringified, placeholders);
-    const baseName = (0, import_path.basename)(inputPath, (0, import_path.extname)(inputPath));
-    const outputPath = (0, import_path.resolve)(outdir, `${baseName}.js`);
-    const typesPath = (0, import_path.resolve)(outdir, `${baseName}.d.ts`);
-    await (0, import_promises4.mkdir)((0, import_path.dirname)(outputPath), { recursive: true });
+    const baseName = (0, import_path3.basename)(inputPath, (0, import_path3.extname)(inputPath));
+    const outputPath = (0, import_path3.resolve)(outdir, `${baseName}.js`);
+    const typesPath = (0, import_path3.resolve)(outdir, `${baseName}.d.ts`);
+    await (0, import_promises4.mkdir)((0, import_path3.dirname)(outputPath), { recursive: true });
     await (0, import_promises4.writeFile)(outputPath, jsCode);
-    const typesContent = placeholders.length > 0 ? `declare const _default: (vars: ${generateTypeDefinition2(placeholders)}) => string;
+    const typesContent = placeholders.length > 0 ? `declare const _default: (vars: ${generateTypeDefinition2(
+      placeholders
+    )}) => string;
 export default _default;` : `declare const _default: string;
 export default _default;`;
     await (0, import_promises4.writeFile)(typesPath, typesContent);

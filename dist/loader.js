@@ -12,7 +12,7 @@ async function mdToString(raw, options = {}) {
   } = options;
   let processor = remark();
   for (const plugin of remarkPlugins) {
-    if (plugin) {
+    if (plugin && (typeof plugin === "function" || Array.isArray(plugin) && plugin.length > 0)) {
       processor = processor.use(plugin);
     }
   }
