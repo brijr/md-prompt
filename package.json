@@ -1,6 +1,6 @@
 {
   "name": "md-prompt",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Markdown-to-prompt toolkit with typed placeholders and zero runtime overhead",
   "type": "module",
   "main": "dist/index.js",
@@ -35,7 +35,6 @@
     "README.md"
   ],
   "scripts": {
-    "publish": "pnpm build && npm publish --access public",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
