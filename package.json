@@ -35,6 +35,7 @@
     "README.md"
   ],
   "scripts": {
+    "publish": "pnpm build && npm publish --access public",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
